@@ -24,14 +24,7 @@ namespace AspNetCoreMvcUpgrade
                 if (HasBaseTypeOfController(root))
                 {
                     root = UpdateController(root);
-                    string newPath = file.Replace("/old/", "/new/");
-                    
-                    if (!Directory.Exists(Path.GetDirectoryName(newPath)))
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(newPath));
-                    }
-
-                    File.WriteAllText(newPath, root.ToString());                                
+                    WriteFile(file, root);
                 }
             }
             
@@ -39,6 +32,18 @@ namespace AspNetCoreMvcUpgrade
             // SyntaxTree tree = CSharpSyntaxTree.ParseText(programText);
             // string newPath = path.Replace("/old/", "/new/");
             // File.WriteAllText(newPath, root.ToString());            
+        }
+
+        private static void WriteFile(string file, SyntaxNode root)
+        {
+            string newPath = file.Replace("/old/", "/new/");
+
+            if (!Directory.Exists(Path.GetDirectoryName(newPath)))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(newPath));
+            }
+
+            File.WriteAllText(newPath, root.ToString());
         }
 
         private static SyntaxNode GetRoot(string file)
