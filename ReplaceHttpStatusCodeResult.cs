@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace AspNetPort
+namespace AspNetCoreMvcUpgrade
 {
     public class ReplaceHttpStatusCodeResult : CSharpSyntaxRewriter
     {

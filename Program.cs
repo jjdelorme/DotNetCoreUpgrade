@@ -9,25 +9,19 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Build.Locator;
 using System.Threading.Tasks;
 
-namespace AspNetPort
+namespace AspNetCoreMvcUpgrade
 {
     class Program
     {
         static async Task Main(string[] args)
         {
-            // string path = args[0];
-            string path = "/home/jason/dev/roslyn/old/ContosoUniversity.sln";
+            string path = args[0];
 
             foreach (var file in await GetFilesAsync(path))
             {
-                string programText = System.IO.File.ReadAllText(file);
-                SyntaxTree tree = CSharpSyntaxTree.ParseText(programText);      
-                var root = tree.GetRoot();
+                var root = GetRoot(file);
 
-                if (root.DescendantNodes().OfType<BaseTypeSyntax>()
-                    .Any(baseType => baseType.DescendantNodes()
-                        .OfType<IdentifierNameSyntax>()
-                            .Any(id => id.Identifier.Text == "Controller")))
+                if (HasBaseTypeOfController(root))
                 {
                     root = UpdateController(root);
                     string newPath = file.Replace("/old/", "/new/");
@@ -46,6 +40,19 @@ namespace AspNetPort
             // string newPath = path.Replace("/old/", "/new/");
             // File.WriteAllText(newPath, root.ToString());            
         }
+
+        private static SyntaxNode GetRoot(string file)
+        {
+            string programText = System.IO.File.ReadAllText(file);
+            SyntaxTree tree = CSharpSyntaxTree.ParseText(programText);      
+            return tree.GetRoot();
+        }
+
+        private static bool HasBaseTypeOfController(SyntaxNode root) =>
+            root.DescendantNodes().OfType<BaseTypeSyntax>()
+                    .Any(baseType => baseType.DescendantNodes()
+                        .OfType<IdentifierNameSyntax>()
+                            .Any(id => id.Identifier.Text == "Controller"));          
 
         private static async Task<IEnumerable<string>> GetFilesAsync(string path)
         {

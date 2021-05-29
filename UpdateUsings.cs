@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace AspNetPort
+namespace AspNetCoreMvcUpgrade
 {
     class UpdateUsings
     {
