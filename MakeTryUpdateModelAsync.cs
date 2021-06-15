@@ -7,13 +7,21 @@ namespace AspNetCoreMvcUpgrade
 {
     public class MakeTryUpdateModelAsync : CSharpSyntaxRewriter
     {
+        private bool IsTryUpdateModel(IdentifierNameSyntax id) =>
+            id.Identifier.Text == "TryUpdateModel";
+
+        private bool ContainsTryUpdateModel(SyntaxNode node) =>
+            node.DescendantNodes().OfType<IdentifierNameSyntax>().Any(IsTryUpdateModel);
+
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            if (node.DescendantNodes().OfType<IdentifierNameSyntax>().Any(
-                id => id.Identifier.Text == "TryUpdateModel"))
+            if (ContainsTryUpdateModel(node))
             {
-                node = AddAsyncKeyword(node);
-                node = AddGenericTaskReturnType(node);
+                if (!node.Modifiers.Any(m => m.Text == "async"))
+                {
+                    node = AddAsyncKeyword(node);
+                    node = AddGenericTaskReturnType(node);
+                }
                 node = AwaitTryUpdateModelAsync(node);
                 
                 return node;                
@@ -50,34 +58,32 @@ namespace AspNetCoreMvcUpgrade
 
         private MethodDeclarationSyntax AwaitTryUpdateModelAsync(MethodDeclarationSyntax node)
         {
-            //
-            // TODO: What if there are mutiple invocations of TryUpdateModel in this method?
-            //
+            var invocations = node.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                .Where(ContainsTryUpdateModel);
 
-            node = AppendAsyncToTryUpdateModel(node);
-            node = RemoveArgumentsFromTryUpdateModelAsync(node);
-            node = AddAwaitToTryUpdateModelAsync(node);
+            foreach (var invocation in invocations)
+            {
+                node = AppendAsyncToTryUpdateModel(node, invocation);
+                node = RemoveArgumentsFromTryUpdateModelAsync(node, invocation);
+                // node = AddAwaitToTryUpdateModelAsync(node, invocation);
+            }
             
             return node;
         }
 
-        private MethodDeclarationSyntax AppendAsyncToTryUpdateModel(MethodDeclarationSyntax node)
+        private MethodDeclarationSyntax AppendAsyncToTryUpdateModel(MethodDeclarationSyntax node, 
+            InvocationExpressionSyntax invocation)
         {
-            var invocation = node.DescendantNodes().OfType<IdentifierNameSyntax>().Single(
-                id => id.Identifier.Text == "TryUpdateModel");
+            var id = invocation.DescendantNodes().OfType<IdentifierNameSyntax>()
+                .Single(IsTryUpdateModel);
+            var newId = id.WithIdentifier(SyntaxFactory.Identifier("TryUpdateModelAsync"));
 
-            var newInvocation = invocation.WithIdentifier(SyntaxFactory.Identifier("TryUpdateModelAsync"));
-
-            return node.ReplaceNode(invocation, newInvocation);
+            return node.ReplaceNode(id, newId.WithTriviaFrom(id)); 
         }
 
-        private MethodDeclarationSyntax RemoveArgumentsFromTryUpdateModelAsync(MethodDeclarationSyntax node) 
+        private MethodDeclarationSyntax RemoveArgumentsFromTryUpdateModelAsync(MethodDeclarationSyntax node, 
+            InvocationExpressionSyntax invocation)
         {
-            // Remove all but the 1st argument
-            var invocation = node.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(
-                invocation => invocation.DescendantNodes().OfType<IdentifierNameSyntax>().Any(
-                    id => id.Identifier.Text == "TryUpdateModelAsync"));
-
             var args = invocation.ArgumentList.WithArguments(
                 SyntaxFactory.SeparatedList<ArgumentSyntax>(
                     invocation.ArgumentList.Arguments.Take(1))
@@ -86,18 +92,20 @@ namespace AspNetCoreMvcUpgrade
             return node.ReplaceNode(invocation.ArgumentList, args);
         }
 
-        private MethodDeclarationSyntax AddAwaitToTryUpdateModelAsync(MethodDeclarationSyntax node)
-        {
-            var invocation = node.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(
-                invocation => invocation.DescendantNodes().OfType<IdentifierNameSyntax>().Any(
-                    id => id.Identifier.Text == "TryUpdateModelAsync"));            
+        private MethodDeclarationSyntax AddAwaitToTryUpdateModelAsync(MethodDeclarationSyntax node, 
+            InvocationExpressionSyntax invocation)
+        {           
+            // Return if already part of an await expression.
+            if (invocation.Parent is AwaitExpressionSyntax)
+                return node;
             
             var awaitInvocation = SyntaxFactory.AwaitExpression(
                     SyntaxFactory.Token(SyntaxKind.AwaitKeyword)
                         .WithTrailingTrivia(SyntaxFactory.Space), 
                         invocation);
             
-            return node.ReplaceNode(invocation, awaitInvocation);
+            return node.ReplaceNode(invocation, 
+                awaitInvocation.WithTriviaFrom(invocation));
         }
     }
 }
